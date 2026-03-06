@@ -24,6 +24,12 @@
 				align-items: center;
 			}
 
+			main > div {
+				user-select: none;
+				-webkit-user-select: none;
+				-webkit-touch-callout: none;
+			}
+
 			.controls {
 				display: flex;
 				gap: 12px;
@@ -55,9 +61,18 @@
 					max-width: 90vw;
                 appearance: none;
                 -webkit-appearance: none;
+				user-select: none;
+				-webkit-user-select: none;
+				-webkit-touch-callout: none;
                 -webkit-tap-highlight-color: transparent;
                 outline: none;
                 transition: transform 0.1s ease, box-shadow 0.1s ease;
+			}
+
+			button * {
+				user-select: none;
+				-webkit-user-select: none;
+				-webkit-touch-callout: none;
 			}
             button#buzzButton {
                 /* make it gold and shiny */
@@ -73,10 +88,6 @@
 				opacity: 0.7;
 				cursor: not-allowed;
 			}
-            button.pressed {
-                transform: scale(0.95);
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            }
 
 
 			#particleCanvas {
@@ -354,19 +365,6 @@
 			});
 
 			// Mobile tap press effect
-			function addPressHandler(btn) {
-				btn.addEventListener("pointerdown", () => {
-					btn.classList.add("pressed");
-				});
-				btn.addEventListener("pointerup", () => {
-					btn.classList.remove("pressed");
-				});
-				btn.addEventListener("pointerleave", () => {
-					btn.classList.remove("pressed");
-				});
-			}
-			addPressHandler(button);
-			addPressHandler(buzzButton);
 
 			window.addEventListener("resize", resizeCanvas);
 			resizeCanvas();
