@@ -3,7 +3,18 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-		<title>Web Haptics Button</title>
+		<title>Robert's Favorite Button</title>
+        <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96" />
+        <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+        <link rel="shortcut icon" href="favicon.ico" />
+        <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-title" content="Rob Button" />
+
+        <link rel="manifest" href="site.webmanifest" />
+
+        <meta name="description" content="Experience the joy of Robert's Favorite Button, a delightful interactive button designed for an engaging user experience. Perfect for adding a touch of fun to your life!" />
+        <meta name="keywords" content="Robert's Favorite Button, interactive button, fun button, engaging user experience, delightful button, vibration, emojis, particle physics, FDT, ATF" />
+
 		<style>
 			html,
 			body,
@@ -19,7 +30,7 @@
 				display: grid;
 				/* place-items: center; */
 				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-				background: #f5f5f5;
+				background: white;
                 touch-action: manipulation;
 			}
 
@@ -115,6 +126,10 @@
 				width: 100vw;
 				height: 100vh;
 				pointer-events: none;
+                z-index: 214748365;
+                overflow: hidden;
+                user-select: none;
+                contain: strict;
 			}
 		</style>
 	</head>
