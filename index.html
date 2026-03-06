@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 		<title>Web Haptics Button</title>
 		<style>
 			body {
@@ -403,6 +403,9 @@
 
 			// Enable :active styles on mobile Safari
             document.addEventListener("touchstart", () => {}, { passive: true });
+			document.addEventListener("gesturestart", (event) => {
+				event.preventDefault();
+			});
 
 
 			window.addEventListener("resize", resizeCanvas);
