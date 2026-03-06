@@ -364,7 +364,9 @@
 				spawnBurst(x, y, "buzz");
 			});
 
-			// Mobile tap press effect
+			// Enable :active styles on mobile Safari
+            document.addEventListener("touchstart", () => {}, { passive: true });
+
 
 			window.addEventListener("resize", resizeCanvas);
 			resizeCanvas();
