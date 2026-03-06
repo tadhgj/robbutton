@@ -84,6 +84,17 @@
                 transform: scale(0.95);
                 box-shadow: 0 2px 4px rgba(255, 193, 7, 0.2);
             }
+			button.buzz-active {
+				animation: buzzRotate 120ms ease-in-out infinite;
+			}
+
+			@keyframes buzzRotate {
+				0% { transform: rotate(0deg); }
+				25% { transform: rotate(-3deg); }
+				50% { transform: rotate(3deg); }
+				75% { transform: rotate(-2deg); }
+				100% { transform: rotate(0deg); }
+			}
 			button:disabled {
 				opacity: 0.7;
 				cursor: not-allowed;
@@ -352,14 +363,40 @@
 				};
 			}
 
+			const buzzAnimTimers = new WeakMap();
+			const HAPTIC_VISUAL_MS = {
+				success: 120,
+				buzz: 450,
+			};
+
+			function playBuzzRotation(targetButton, durationMs) {
+				targetButton.classList.remove("buzz-active");
+				void targetButton.offsetWidth;
+				targetButton.classList.add("buzz-active");
+
+				const existingTimer = buzzAnimTimers.get(targetButton);
+				if (existingTimer) {
+					clearTimeout(existingTimer);
+				}
+
+				const timer = setTimeout(() => {
+					targetButton.classList.remove("buzz-active");
+					buzzAnimTimers.delete(targetButton);
+				}, durationMs);
+
+				buzzAnimTimers.set(targetButton, timer);
+			}
+
 			button.addEventListener("click", () => {
 				haptics.trigger("success");
+				playBuzzRotation(button, HAPTIC_VISUAL_MS.success);
 				const { x, y } = getCenter(button);
 				spawnBurst(x, y, "success");
 			});
 
 			buzzButton.addEventListener("click", () => {
 				haptics.trigger("buzz");
+				playBuzzRotation(buzzButton, HAPTIC_VISUAL_MS.buzz);
 				const { x, y } = getCenter(buzzButton);
 				spawnBurst(x, y, "buzz");
 			});
