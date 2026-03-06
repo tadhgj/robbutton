@@ -9,15 +9,16 @@
 				margin: 0;
 				min-height: 100vh;
 				display: grid;
-				place-items: center;
+				/* place-items: center; */
 				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 				background: #f5f5f5;
-                /* content-touch: manip */
                 touch-action: manipulation;
 			}
 
 			main {
 				display: flex;
+					align-items: center;
+					justify-content: center;
 				flex-direction: column;
 				gap: 12px;
 				align-items: center;
@@ -31,8 +32,13 @@
 			h1 {
 				margin: 0;
 				font-size: 1.5rem;
-                margin-bottom: 20px;
 			}
+            h2 {
+                margin: 0;
+            }
+            h3 {
+                margin: 0;
+            }
 
 			button {
 				font-size: 1rem;
@@ -40,7 +46,34 @@
 				border: 0;
 				border-radius: 10px;
 				cursor: pointer;
+                /* no text highlight */
+                /* user-select: none; */
+                color: black;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                display: flex;
+                width: auto;
+					max-width: 90vw;
+                appearance: none;
+                -webkit-appearance: none;
+                -webkit-tap-highlight-color: transparent;
+                outline: none;
+                transition: transform 0.1s ease, box-shadow 0.1s ease;
 			}
+            button#buzzButton {
+                /* make it gold and shiny */
+                background: linear-gradient(45deg, #ffeb3b, #ffc107);
+                color: #333;
+                box-shadow: 0 4px 6px rgba(255, 193, 7, 0.4);
+            }
+            button#buzzButton:active {
+                transform: scale(0.95);
+                box-shadow: 0 2px 4px rgba(255, 193, 7, 0.2);
+            }
+            button.pressed {
+                transform: scale(0.95);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            }
+
 
 			#particleCanvas {
 				position: fixed;
@@ -53,11 +86,15 @@
 	</head>
 	<body>
 		<main>
-			<h1>Robert's Favorite Button</h1>
-			<div class="controls">
-				<button id="hapticButton" type="button">Tap for haptic</button>
-				<button id="buzzButton" type="button">Long buzz</button>
-			</div>
+            <div style="height: 300px;"></div>
+            <button id="buzzButton" type="button">
+                <h1>Robert's <i>Favorite Button</i></h1>
+            </button>
+            <div style="height: calc(50vh - 100px);"></div>
+            <button id="hapticButton" type="button">
+                <h3>Robert's <small>(Second)</small> Favorite Button</h3>
+            </button>
+            <div style="height: 300px;"></div>
 		</main>
 		<canvas id="particleCanvas" aria-hidden="true"></canvas>
 
@@ -72,8 +109,9 @@
 			const particles = [];
 			const emojiCache = new Map();
 			const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-			const MAX_ACTIVE = isMobile ? 70 : 130;
-			const MAX_COLLISION_PARTICLES = isMobile ? 40 : 70;
+			const MAX_ACTIVE = isMobile ? 180 : 500;
+			const ANIM_FRAMES = 120;
+			const MAX_DPR = 2;
 			let dpr = 1;
 			let rafId = null;
 
@@ -83,17 +121,29 @@
 			};
 
 			function resizeCanvas() {
-				dpr = Math.min(window.devicePixelRatio || 1, 2);
-				canvas.width = Math.floor(window.innerWidth * dpr);
-				canvas.height = Math.floor(window.innerHeight * dpr);
-				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+				const w = window.innerWidth;
+				const h = window.innerHeight;
+				const targetW = Math.round(w * dpr);
+				const targetH = Math.round(h * dpr);
+
+				if (canvas.width !== targetW || canvas.height !== targetH) {
+					canvas.width = targetW;
+					canvas.height = targetH;
+					canvas.style.width = `${w}px`;
+					canvas.style.height = `${h}px`;
+				}
 			}
 
 			function getEmojiCanvas(emoji) {
 				const cached = emojiCache.get(emoji);
 				if (cached) return cached;
 
-				const size = 96;
+				const emDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+				const CANONICAL_PX = 64;
+				const fontSize = Math.ceil(CANONICAL_PX * emDpr);
+				const size = Math.ceil(fontSize * 1.5);
+
 				const offscreen = document.createElement("canvas");
 				offscreen.width = size;
 				offscreen.height = size;
@@ -101,32 +151,59 @@
 				const offCtx = offscreen.getContext("2d");
 				offCtx.textAlign = "center";
 				offCtx.textBaseline = "middle";
-				offCtx.font = `72px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+				offCtx.font = `${fontSize}px serif`;
 				offCtx.fillText(emoji, size / 2, size / 2);
 
 				emojiCache.set(emoji, offscreen);
 				return offscreen;
 			}
 
+			function updateParticle(p) {
+				p.a += p.xv * 0.5;
+				p.yv *= 0.9;
+				p.y += p.yv;
+				p.xv *= 0.98;
+				p.x += p.xv;
+				p.s += (1 - p.s) * 0.3;
+				p.xv += p.gx * 0.1;
+				p.yv += (p.gy + p.yv) * 0.1;
+
+				p.radius = p.fontSize * p.s * 0.5;
+
+				p.life--;
+				const lifeRatio = p.life / p.maxLife;
+				if (lifeRatio < 0.25) {
+					p.opacity = lifeRatio / 0.25;
+				}
+
+				return p.life > 0 && p.opacity > 0.01;
+			}
+
 			function spawnBurst(x, y, type) {
 				const emojis = EMOJIS[type];
-				const amount = type === "buzz" ? (isMobile ? 8 : 12) : isMobile ? 6 : 9;
-				const slots = Math.max(0, MAX_ACTIVE - particles.length);
-				const count = Math.min(amount, slots);
+				const amount = 4;
+				if (particles.length + amount > MAX_ACTIVE) return;
 
-				for (let i = 0; i < count; i++) {
-					const radius = 12 + Math.random() * 10;
+				for (let i = 0; i < amount; i++) {
+					const xv = Math.random() * 16 - 8;
+					const yv = (i === 0 ? 4 : i === 1 ? 8 : i === 2 ? 8 : 0) * (0.25 + Math.random() * 0.25);
+
 					particles.push({
-						x: x + (Math.random() - 0.5) * 8,
-						y: y + (Math.random() - 0.5) * 8,
-						vx: (Math.random() - 0.5) * 8,
-						vy: -3 - Math.random() * 5,
-						radius,
+						x,
+						y,
+						xv,
+						yv,
+						a: 0,
+						s: 0.2,
+						opacity: 1,
+						life: ANIM_FRAMES,
+						maxLife: ANIM_FRAMES,
 						emoji: emojis[Math.floor(Math.random() * emojis.length)],
-						life: 75 + Math.floor(Math.random() * 30),
-						maxLife: 105,
-						rotation: (Math.random() - 0.5) * 0.3,
-						angle: Math.random() * Math.PI * 2,
+						flipH: Math.random() < 0.5,
+						fontSize: 20 + Math.ceil(Math.random() * 40),
+						radius: 0,
+						gx: 0,
+						gy: -1.5,
 					});
 				}
 
@@ -134,39 +211,41 @@
 			}
 
 			function resolveCollisions() {
-				if (particles.length > MAX_COLLISION_PARTICLES) return;
-
-				for (let i = 0; i < particles.length; i++) {
-					for (let j = i + 1; j < particles.length; j++) {
+				const n = particles.length;
+				for (let i = 0; i < n; i++) {
+					for (let j = i + 1; j < n; j++) {
 						const a = particles[i];
 						const b = particles[j];
+
 						const dx = b.x - a.x;
 						const dy = b.y - a.y;
 						const distSq = dx * dx + dy * dy;
 						const minDist = a.radius + b.radius;
 
-						if (distSq > 0.0001 && distSq < minDist * minDist) {
+						if (distSq < minDist * minDist && distSq > 0.0001) {
 							const dist = Math.sqrt(distSq);
 							const nx = dx / dist;
 							const ny = dy / dist;
+
 							const overlap = minDist - dist;
+							const sep = overlap * 0.5;
+							a.x -= nx * sep;
+							a.y -= ny * sep;
+							b.x += nx * sep;
+							b.y += ny * sep;
 
-							a.x -= nx * overlap * 0.5;
-							a.y -= ny * overlap * 0.5;
-							b.x += nx * overlap * 0.5;
-							b.y += ny * overlap * 0.5;
+							const dvx = a.xv - b.xv;
+							const dvy = a.yv - b.yv;
+							const dvDotN = dvx * nx + dvy * ny;
 
-							const rvx = b.vx - a.vx;
-							const rvy = b.vy - a.vy;
-							const velAlongNormal = rvx * nx + rvy * ny;
-							if (velAlongNormal > 0) continue;
-
-							const bounce = 0.85;
-							const impulse = (-(1 + bounce) * velAlongNormal) / 2;
-							a.vx -= impulse * nx;
-							a.vy -= impulse * ny;
-							b.vx += impulse * nx;
-							b.vy += impulse * ny;
+							if (dvDotN > 0) {
+								const restitution = 0.5;
+								const impulse = dvDotN * restitution;
+								a.xv -= impulse * nx;
+								a.yv -= impulse * ny;
+								b.xv += impulse * nx;
+								b.yv += impulse * ny;
+							}
 						}
 					}
 				}
@@ -181,58 +260,58 @@
 				if (particles.length === 0) {
 					ctx.setTransform(1, 0, 0, 1, 0, 0);
 					ctx.clearRect(0, 0, canvas.width, canvas.height);
-					ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 					rafId = null;
 					return;
 				}
 
-				ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+				const curDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
 				for (let i = particles.length - 1; i >= 0; i--) {
-					const p = particles[i];
-					p.vy += 0.18;
-					p.vx *= 0.99;
-					p.vy *= 0.99;
-					p.x += p.vx;
-					p.y += p.vy;
-					p.angle += p.rotation;
-					p.life -= 1;
-
-					if (p.x < p.radius) {
-						p.x = p.radius;
-						p.vx *= -0.7;
-					} else if (p.x > window.innerWidth - p.radius) {
-						p.x = window.innerWidth - p.radius;
-						p.vx *= -0.7;
-					}
-
-					if (p.y > window.innerHeight - p.radius) {
-						p.y = window.innerHeight - p.radius;
-						p.vy *= -0.6;
-					}
-
-					if (p.life <= 0) {
+					if (!updateParticle(particles[i])) {
 						particles[i] = particles[particles.length - 1];
 						particles.pop();
 					}
 				}
 
-				resolveCollisions();
-
-				for (const p of particles) {
-					const alpha = Math.max(0, Math.min(1, p.life / p.maxLife));
-					const emojiImg = getEmojiCanvas(p.emoji);
-					const drawSize = p.radius * 2.2;
-					const halfSize = drawSize / 2;
-					const cos = Math.cos(p.angle);
-					const sin = Math.sin(p.angle);
-
-					ctx.setTransform(cos * dpr, sin * dpr, -sin * dpr, cos * dpr, p.x * dpr, p.y * dpr);
-					ctx.globalAlpha = alpha;
-					ctx.drawImage(emojiImg, -halfSize, -halfSize, drawSize, drawSize);
+				if (particles.length === 0) {
+					ctx.setTransform(1, 0, 0, 1, 0, 0);
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					rafId = null;
+					return;
 				}
 
-				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				resolveCollisions();
+
+				ctx.setTransform(1, 0, 0, 1, 0, 0);
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+				ctx.globalAlpha = 1;
+				for (let pass = 0; pass < 2; pass++) {
+					for (let i = 0; i < particles.length; i++) {
+						const p = particles[i];
+						const isFading = p.opacity < 1;
+
+						if (pass === 0 && isFading) continue;
+						if (pass === 1 && !isFading) continue;
+
+						if (pass === 1) {
+							ctx.globalAlpha = p.opacity;
+						}
+
+						const emojiImg = getEmojiCanvas(p.emoji);
+						const drawSize = p.fontSize * p.s * 1.5;
+						const halfSize = drawSize / 2;
+
+						const rad = (p.a * Math.PI) / 180;
+						const cos = Math.cos(rad) * curDpr;
+						const sin = Math.sin(rad) * curDpr;
+						const fx = p.flipH ? -1 : 1;
+						ctx.setTransform(cos * fx, sin * fx, -sin, cos, p.x * curDpr, p.y * curDpr);
+
+						ctx.drawImage(emojiImg, -halfSize, -halfSize, drawSize, drawSize);
+					}
+				}
+
 				ctx.globalAlpha = 1;
 				rafId = requestAnimationFrame(updateAndDraw);
 			}
@@ -256,6 +335,21 @@
 				const { x, y } = getCenter(buzzButton);
 				spawnBurst(x, y, "buzz");
 			});
+
+			// Mobile tap press effect
+			function addPressHandler(btn) {
+				btn.addEventListener("pointerdown", () => {
+					btn.classList.add("pressed");
+				});
+				btn.addEventListener("pointerup", () => {
+					btn.classList.remove("pressed");
+				});
+				btn.addEventListener("pointerleave", () => {
+					btn.classList.remove("pressed");
+				});
+			}
+			addPressHandler(button);
+			addPressHandler(buzzButton);
 
 			window.addEventListener("resize", resizeCanvas);
 			resizeCanvas();
