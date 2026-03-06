@@ -69,6 +69,10 @@
                 transform: scale(0.95);
                 box-shadow: 0 2px 4px rgba(255, 193, 7, 0.2);
             }
+			button:disabled {
+				opacity: 0.7;
+				cursor: not-allowed;
+			}
             button.pressed {
                 transform: scale(0.95);
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -87,11 +91,11 @@
 	<body>
 		<main>
             <div style="height: 300px;"></div>
-            <button id="buzzButton" type="button">
+			<button id="buzzButton" type="button" disabled>
                 <h1>Robert's <i>Favorite Button</i></h1>
             </button>
             <div style="height: calc(50vh - 100px);"></div>
-            <button id="hapticButton" type="button">
+			<button id="hapticButton" type="button" disabled>
                 <h3>Robert's <small>(Second)</small> Favorite Button</h3>
             </button>
             <div style="height: 300px;"></div>
@@ -119,6 +123,11 @@
 				success: ["✅", "🎉", "✨", "💚", "👍"],
 				buzz: ["🐝", "🍯", "🌼", "🫨"],
 			};
+
+			function setButtonsEnabled(enabled) {
+				button.disabled = !enabled;
+				buzzButton.disabled = !enabled;
+			}
 
 			function resizeCanvas() {
 				dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
@@ -156,6 +165,14 @@
 
 				emojiCache.set(emoji, offscreen);
 				return offscreen;
+			}
+
+			function prewarmEmojiCache() {
+				for (const group of Object.values(EMOJIS)) {
+					for (const emoji of group) {
+						getEmojiCanvas(emoji);
+					}
+				}
 			}
 
 			function updateParticle(p) {
@@ -253,7 +270,7 @@
 
 			function startLoop() {
 				if (rafId !== null) return;
-				rafId = requestAnimationFrame(updateAndDraw);
+				updateAndDraw();
 			}
 
 			function updateAndDraw() {
@@ -353,6 +370,8 @@
 
 			window.addEventListener("resize", resizeCanvas);
 			resizeCanvas();
+			prewarmEmojiCache();
+			setButtonsEnabled(true);
 		</script>
 	</body>
 </html>
