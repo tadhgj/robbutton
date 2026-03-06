@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Web Haptics Button</title>
+		<style>
+			body {
+				margin: 0;
+				min-height: 100vh;
+				display: grid;
+				place-items: center;
+				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				background: #f5f5f5;
+                /* content-touch: manip */
+                touch-action: manipulation;
+			}
+
+			main {
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+				align-items: center;
+			}
+
+			.controls {
+				display: flex;
+				gap: 12px;
+			}
+
+			h1 {
+				margin: 0;
+				font-size: 1.5rem;
+                margin-bottom: 20px;
+			}
+
+			button {
+				font-size: 1rem;
+				padding: 0.8rem 1.2rem;
+				border: 0;
+				border-radius: 10px;
+				cursor: pointer;
+			}
+
+			#particleCanvas {
+				position: fixed;
+				inset: 0;
+				width: 100vw;
+				height: 100vh;
+				pointer-events: none;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Robert's Favorite Button</h1>
+			<div class="controls">
+				<button id="hapticButton" type="button">Tap for haptic</button>
+				<button id="buzzButton" type="button">Long buzz</button>
+			</div>
+		</main>
+		<canvas id="particleCanvas" aria-hidden="true"></canvas>
+
+		<script type="module">
+			import { WebHaptics } from "./node_modules/web-haptics/dist/index.mjs";
+
+			const button = document.getElementById("hapticButton");
+			const buzzButton = document.getElementById("buzzButton");
+			const canvas = document.getElementById("particleCanvas");
+			const ctx = canvas.getContext("2d");
+			const haptics = new WebHaptics();
+			const particles = [];
+			const emojiCache = new Map();
+			const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+			const MAX_ACTIVE = isMobile ? 70 : 130;
+			const MAX_COLLISION_PARTICLES = isMobile ? 40 : 70;
+			let dpr = 1;
+			let rafId = null;
+
+			const EMOJIS = {
+				success: ["✅", "🎉", "✨", "💚", "👍"],
+				buzz: ["🐝", "🍯", "🌼", "🫨"],
+			};
+
+			function resizeCanvas() {
+				dpr = Math.min(window.devicePixelRatio || 1, 2);
+				canvas.width = Math.floor(window.innerWidth * dpr);
+				canvas.height = Math.floor(window.innerHeight * dpr);
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+
+			function getEmojiCanvas(emoji) {
+				const cached = emojiCache.get(emoji);
+				if (cached) return cached;
+
+				const size = 96;
+				const offscreen = document.createElement("canvas");
+				offscreen.width = size;
+				offscreen.height = size;
+
+				const offCtx = offscreen.getContext("2d");
+				offCtx.textAlign = "center";
+				offCtx.textBaseline = "middle";
+				offCtx.font = `72px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+				offCtx.fillText(emoji, size / 2, size / 2);
+
+				emojiCache.set(emoji, offscreen);
+				return offscreen;
+			}
+
+			function spawnBurst(x, y, type) {
+				const emojis = EMOJIS[type];
+				const amount = type === "buzz" ? (isMobile ? 8 : 12) : isMobile ? 6 : 9;
+				const slots = Math.max(0, MAX_ACTIVE - particles.length);
+				const count = Math.min(amount, slots);
+
+				for (let i = 0; i < count; i++) {
+					const radius = 12 + Math.random() * 10;
+					particles.push({
+						x: x + (Math.random() - 0.5) * 8,
+						y: y + (Math.random() - 0.5) * 8,
+						vx: (Math.random() - 0.5) * 8,
+						vy: -3 - Math.random() * 5,
+						radius,
+						emoji: emojis[Math.floor(Math.random() * emojis.length)],
+						life: 75 + Math.floor(Math.random() * 30),
+						maxLife: 105,
+						rotation: (Math.random() - 0.5) * 0.3,
+						angle: Math.random() * Math.PI * 2,
+					});
+				}
+
+				startLoop();
+			}
+
+			function resolveCollisions() {
+				if (particles.length > MAX_COLLISION_PARTICLES) return;
+
+				for (let i = 0; i < particles.length; i++) {
+					for (let j = i + 1; j < particles.length; j++) {
+						const a = particles[i];
+						const b = particles[j];
+						const dx = b.x - a.x;
+						const dy = b.y - a.y;
+						const distSq = dx * dx + dy * dy;
+						const minDist = a.radius + b.radius;
+
+						if (distSq > 0.0001 && distSq < minDist * minDist) {
+							const dist = Math.sqrt(distSq);
+							const nx = dx / dist;
+							const ny = dy / dist;
+							const overlap = minDist - dist;
+
+							a.x -= nx * overlap * 0.5;
+							a.y -= ny * overlap * 0.5;
+							b.x += nx * overlap * 0.5;
+							b.y += ny * overlap * 0.5;
+
+							const rvx = b.vx - a.vx;
+							const rvy = b.vy - a.vy;
+							const velAlongNormal = rvx * nx + rvy * ny;
+							if (velAlongNormal > 0) continue;
+
+							const bounce = 0.85;
+							const impulse = (-(1 + bounce) * velAlongNormal) / 2;
+							a.vx -= impulse * nx;
+							a.vy -= impulse * ny;
+							b.vx += impulse * nx;
+							b.vy += impulse * ny;
+						}
+					}
+				}
+			}
+
+			function startLoop() {
+				if (rafId !== null) return;
+				rafId = requestAnimationFrame(updateAndDraw);
+			}
+
+			function updateAndDraw() {
+				if (particles.length === 0) {
+					ctx.setTransform(1, 0, 0, 1, 0, 0);
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+					rafId = null;
+					return;
+				}
+
+				ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+				for (let i = particles.length - 1; i >= 0; i--) {
+					const p = particles[i];
+					p.vy += 0.18;
+					p.vx *= 0.99;
+					p.vy *= 0.99;
+					p.x += p.vx;
+					p.y += p.vy;
+					p.angle += p.rotation;
+					p.life -= 1;
+
+					if (p.x < p.radius) {
+						p.x = p.radius;
+						p.vx *= -0.7;
+					} else if (p.x > window.innerWidth - p.radius) {
+						p.x = window.innerWidth - p.radius;
+						p.vx *= -0.7;
+					}
+
+					if (p.y > window.innerHeight - p.radius) {
+						p.y = window.innerHeight - p.radius;
+						p.vy *= -0.6;
+					}
+
+					if (p.life <= 0) {
+						particles[i] = particles[particles.length - 1];
+						particles.pop();
+					}
+				}
+
+				resolveCollisions();
+
+				for (const p of particles) {
+					const alpha = Math.max(0, Math.min(1, p.life / p.maxLife));
+					const emojiImg = getEmojiCanvas(p.emoji);
+					const drawSize = p.radius * 2.2;
+					const halfSize = drawSize / 2;
+					const cos = Math.cos(p.angle);
+					const sin = Math.sin(p.angle);
+
+					ctx.setTransform(cos * dpr, sin * dpr, -sin * dpr, cos * dpr, p.x * dpr, p.y * dpr);
+					ctx.globalAlpha = alpha;
+					ctx.drawImage(emojiImg, -halfSize, -halfSize, drawSize, drawSize);
+				}
+
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				ctx.globalAlpha = 1;
+				rafId = requestAnimationFrame(updateAndDraw);
+			}
+
+			function getCenter(el) {
+				const rect = el.getBoundingClientRect();
+				return {
+					x: rect.left + rect.width / 2,
+					y: rect.top + rect.height / 2,
+				};
+			}
+
+			button.addEventListener("click", () => {
+				haptics.trigger("success");
+				const { x, y } = getCenter(button);
+				spawnBurst(x, y, "success");
+			});
+
+			buzzButton.addEventListener("click", () => {
+				haptics.trigger("buzz");
+				const { x, y } = getCenter(buzzButton);
+				spawnBurst(x, y, "buzz");
+			});
+
+			window.addEventListener("resize", resizeCanvas);
+			resizeCanvas();
+		</script>
+	</body>
+</html>
